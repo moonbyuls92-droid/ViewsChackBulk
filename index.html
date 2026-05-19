@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>TikTok Bulk Checker</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+
+  <body class="bg-black text-white min-h-screen p-10">
+    <!-- ACCESS DATE -->
+
+    <div
+      id="countdown"
+      class="fixed top-4 right-4 bg-zinc-900/90 border border-pink-500 text-white px-3 py-2 rounded-lg shadow-md z-50 text-xs"
+    >
+      Loading...
+    </div>
+
+    <div class="max-w-7xl mx-auto">
+      <h1 class="text-4xl font-bold mb-2">TikTok Bulk Checker</h1>
+
+      <p class="text-gray-400 mb-6">Check multiple TikTok videos instantly</p>
+
+      <textarea
+        id="links"
+        rows="8"
+        class="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-4"
+        placeholder="Paste TikTok links here..."
+      ></textarea>
+
+      <div class="flex gap-3 mt-4 mb-8">
+        <button
+          onclick="checkViews()"
+          class="bg-pink-600 hover:bg-pink-700 px-6 py-3 rounded-xl"
+        >
+          Check Videos
+        </button>
+
+        <button
+          onclick="exportCSV()"
+          class="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-xl"
+        >
+          Export Excel
+        </button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full border border-zinc-800 rounded-xl overflow-hidden">
+          <thead class="bg-zinc-900">
+            <tr>
+              <th class="p-4 text-left border-b border-zinc-800">
+                Tanggal Posting
+              </th>
+
+              <th class="p-4 text-left border-b border-zinc-800">Username</th>
+
+              <th class="p-4 text-left border-b border-zinc-800">Link Video</th>
+
+              <th class="p-4 text-left border-b border-zinc-800">Views</th>
+
+              <th class="p-4 text-left border-b border-zinc-800">Comments</th>
+
+              <th class="p-4 text-left border-b border-zinc-800">Likes</th>
+
+              <th class="p-4 text-left border-b border-zinc-800">Shares</th>
+            </tr>
+          </thead>
+
+          <tbody id="results"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      // ======================================
+      // ACCESS DATE SYSTEM
+      // ======================================
+
+      const expiredDate = new Date("2026-06-01 23:59:59");
+
+      function updateAccessDate() {
+        const now = new Date().getTime();
+
+        const distance = expiredDate - now;
+
+        // EXPIRED
+        if (distance <= 0) {
+          document.body.innerHTML = `
+
+      <div
+        style="
+          background:black;
+          color:white;
+          height:100vh;
+          display:flex;
+          justify-content:center;
+          align-items:center;
+          flex-direction:column;
+          font-family:sans-serif;
+          text-align:center;
+          padding:30px;
+        "
+      >
+
+        <h1
+          style="
+            font-size:50px;
+            margin-bottom:20px;
+            color:#ec4899;
+          "
+        >
+          Access Expired
+        </h1>
+
+        <p
+          style="
+            color:#a1a1aa;
+            font-size:18px;
+            max-width:500px;
+            line-height:1.7;
+          "
+        >
+          Your subscription has ended.
+          Please contact admin to renew access.
+        </p>
+
+      </div>
+    `;
+
+          return;
+        }
+
+        const formattedDate = expiredDate.toLocaleString("id-ID", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        document.getElementById("countdown").innerHTML = `
+
+      <div class="text-[10px] text-gray-400 mb-1">
+        Access Until
+      </div>
+
+      <div class="font-semibold text-pink-500 text-xs">
+        ${formattedDate}
+      </div>
+
+    `;
+      }
+
+      updateAccessDate();
+
+      // ======================================
+      // MAIN APP
+      // ======================================
+
+      let latestResults = [];
+
+      async function normalizeTikTokLink(link) {
+        try {
+          const response = await fetch(link, {
+            method: "HEAD",
+            redirect: "follow",
+          });
+
+          return response.url;
+        } catch {
+          return link;
+        }
+      }
+
+      async function checkViews() {
+        latestResults = [];
+
+        document.getElementById("results").innerHTML = `
+    <tr>
+      <td colspan="7" class="p-4 text-pink-500">
+        Loading...
+      </td>
+    </tr>
+  `;
+
+        const raw = document.getElementById("links").value;
+
+        const links = raw
+          .split(/\n|,/)
+          .map((v) => v.trim())
+          .filter((v) => v);
+
+        let html = "";
+
+        for (let link of links) {
+          link = await normalizeTikTokLink(link);
+
+          await new Promise((resolve) => setTimeout(resolve, 800));
+
+          try {
+            const response = await fetch(
+              `https://www.tikwm.com/api/?url=${encodeURIComponent(link)}`
+            );
+
+            const json = await response.json();
+
+            const data = json.data;
+
+            const tanggalPosting = data.create_time
+              ? new Date(data.create_time * 1000).toLocaleDateString("id-ID")
+              : "-";
+
+            latestResults.push({
+              tanggal_posting: tanggalPosting,
+              username: data.author.unique_id,
+              link: link,
+              views: data.play_count,
+              comments: data.comment_count,
+              likes: data.digg_count,
+              shares: data.share_count,
+            });
+
+            html += `
+        <tr class="border-b border-zinc-800 hover:bg-zinc-900">
+
+          <td class="p-4">
+            ${tanggalPosting}
+          </td>
+
+          <td class="p-4 font-semibold">
+            @${data.author.unique_id}
+          </td>
+
+          <td class="p-4">
+
+            <a
+              href="${link}"
+              target="_blank"
+              class="text-blue-400 underline"
+            >
+              Open Video
+            </a>
+
+          </td>
+
+          <td class="p-4">
+            ${data.play_count}
+          </td>
+
+          <td class="p-4">
+            ${data.comment_count}
+          </td>
+
+          <td class="p-4">
+            ${data.digg_count}
+          </td>
+
+          <td class="p-4">
+            ${data.share_count}
+          </td>
+
+        </tr>
+      `;
+          } catch (err) {
+            latestResults.push({
+              tanggal_posting: "-",
+              username: "-",
+              link: link,
+              views: "Link tidak terdetect",
+              comments: "-",
+              likes: "-",
+              shares: "-",
+            });
+
+            html += `
+        <tr class="border-b border-zinc-800 bg-red-900/20">
+
+          <td class="p-4">-</td>
+
+          <td class="p-4">-</td>
+
+          <td class="p-4 text-red-400">
+            ${link}
+          </td>
+
+          <td class="p-4 text-red-400">
+            Link tidak terdetect
+          </td>
+
+          <td class="p-4">-</td>
+
+          <td class="p-4">-</td>
+
+          <td class="p-4">-</td>
+
+        </tr>
+      `;
+          }
+
+          document.getElementById("results").innerHTML = html;
+        }
+      }
+
+      function exportCSV() {
+        if (latestResults.length === 0) {
+          alert("No data to export");
+
+          return;
+        }
+
+        let table = `
+    <table border="1">
+
+      <tr>
+        <th>Tanggal Posting</th>
+        <th>Username</th>
+        <th>Link Video TikTok</th>
+        <th>Views</th>
+        <th>Comments</th>
+        <th>Likes</th>
+        <th>Shares</th>
+      </tr>
+  `;
+
+        latestResults.forEach((item) => {
+          table += `
+      <tr>
+
+        <td>${item.tanggal_posting}</td>
+
+        <td>${item.username}</td>
+
+        <td>${item.link}</td>
+
+        <td>${item.views}</td>
+
+        <td>${item.comments}</td>
+
+        <td>${item.likes}</td>
+
+        <td>${item.shares}</td>
+
+      </tr>
+    `;
+        });
+
+        table += `</table>`;
+
+        const blob = new Blob([table], {
+          type: "application/vnd.ms-excel",
+        });
+
+        const url = window.URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+
+        a.href = url;
+
+        a.download = "tiktok-report.xls";
+
+        document.body.appendChild(a);
+
+        a.click();
+
+        document.body.removeChild(a);
+      }
+    </script>
+  </body>
+</html>
